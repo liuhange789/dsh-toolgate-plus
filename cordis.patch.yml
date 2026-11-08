@@ -1,0 +1,4 @@
+# Cordis Framework Patch Declaration for @liuhange/dsh-toolgate-plus
+- insert:
+    - id: "@liuhange/dsh-toolgate-plus"
+      name: "@liuhange/dsh-toolgate-plus"

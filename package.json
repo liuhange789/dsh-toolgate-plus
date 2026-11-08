@@ -1,0 +1,83 @@
+{
+  "name": "@liuhange/dsh-toolgate-plus",
+  "version": "1.0.0",
+  "description": "会话阶段感知的动态工具准入插件 — 判断探索/编辑/调试阶段，并在切换时给出一行建议",
+  "author": "liuhange789",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liuhange789/dsh-toolgate-plus.git"
+  },
+  "homepage": "https://github.com/liuhange789/dsh-toolgate-plus",
+  "bugs": {
+    "url": "https://github.com/liuhange789/dsh-toolgate-plus/issues"
+  },
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./host/dist/index.js",
+  "types": "./host/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./host/dist/index.d.ts",
+      "default": "./host/dist/index.js"
+    },
+    "./client": {
+      "types": "./client/dist/index.d.ts",
+      "default": "./client/dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "host/dist",
+    "client/dist",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "workspaces": [
+    "host",
+    "client"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts --isolate=false",
+    "typecheck": "npm run typecheck --workspaces",
+    "pack:check": "npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": ">=3.18.0 <4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "dsh",
+    "tool-gate",
+    "toolgate",
+    "stage-detection",
+    "workflow",
+    "tools",
+    "plugin",
+    "typescript",
+    "nodejs",
+    "automation"
+  ]
+}
