@@ -3,7 +3,8 @@ import type { StageSnapshot } from './model/types.ts';
 import { STAGE_ICONS } from './model/types.ts';
 import { getStageSuggestion } from './suggestionTemplates.ts';
 import { createSuggestionMessage } from './suggestionMessage.ts';
-import type { DshHostContext, ToolExecutionLike } from './types/dshContext.ts';
+import type { DshHostContext, LogFn, ToolExecutionLike } from './types/dshContext.ts';
+import { createLog } from './types/dshContext.ts';
 import type { StageDetector } from './stage/stageDetector.ts';
 import type { SuggestionThrottler } from './stage/suggestionThrottler.ts';
 
@@ -17,15 +18,17 @@ export interface StageCoordinatorDeps {
 
 export class StageCoordinator {
   private readonly deps: StageCoordinatorDeps;
+  private readonly log: LogFn;
 
   constructor(deps: StageCoordinatorDeps) {
     this.deps = deps;
+    this.log = createLog(deps.ctx);
   }
 
   handleToolCall(exec: ToolExecutionLike, now: number): void {
     const toolName = typeof exec.name === 'string' ? exec.name : '';
     if (toolName.length === 0) {
-      this.deps.ctx.log('warn', 'StageCoordinator: tool name missing');
+      this.log('warn', 'StageCoordinator: tool name missing');
       return;
     }
 
@@ -51,13 +54,13 @@ export class StageCoordinator {
   private pushSuggestion(exec: ToolExecutionLike, suggestion: string): void {
     const agent = exec.agent;
     if (!agent || typeof agent.followup !== 'function') {
-      this.deps.ctx.log('warn', 'StageCoordinator: agent unavailable, suggestion not queued');
+      this.log('warn', 'StageCoordinator: agent unavailable, suggestion not queued');
       return;
     }
     try {
       agent.followup(createSuggestionMessage(suggestion));
     } catch {
-      this.deps.ctx.log('warn', 'StageCoordinator: agent.followup failed');
+      this.log('warn', 'StageCoordinator: agent.followup failed');
     }
   }
 }

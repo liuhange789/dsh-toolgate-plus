@@ -2,9 +2,9 @@
 
 会话阶段感知的动态工具准入插件。监听 `tools/pre-execute`，用最近 5 次工具调用判断当前处于探索、编辑还是调试阶段，并在阶段切换时给出一次性建议。
 
-- Host 侧：`inject: ['agents', 'tools']`，记录工具名与调用序列，阶段切换时调用 `agent.followup()`
-- Client 侧：状态栏左侧显示阶段图标，输入框上方显示一行建议，设置面板提供自动收缩与灵敏度
-- 不做面板图表，不改变工具准入决策（监听器始终调用 `next()`
+- Host 侧：`inject: ['tools']`，记录工具名与调用序列，阶段切换时调用 `agent.followup()`，并把阶段快照写入宿主日志
+- 不含浏览器 UI：1.0.0 里的 `statusBar` / `hintArea` / `settings` 挂载在 DSH 中并不存在，且 client 产物不是 `__ModuleLoader__` 可加载的 bundle，已整体移除；用户可见的一行建议改由 `agent.followup()` 送达
+- 不做面板图表，不改变工具准入决策（监听器始终调用 `next()`）
 
 ## 安装
 
@@ -26,7 +26,6 @@ npm run build
 构建产物：
 
 - `host/dist/index.js` / `host/dist/index.d.ts`
-- `client/dist/index.js` / `client/dist/index.d.ts`
 
 ## 注册进宿主
 
@@ -34,8 +33,7 @@ npm run build
 
 ```json
 "dsh": {
-  "bundle": { "patch": "./cordis.patch.yml" },
-  "client": { "platform": "web" }
+  "bundle": { "patch": "./cordis.patch.yml" }
 }
 ```
 
@@ -59,17 +57,16 @@ npm run build
 
 3. 重启 DSH，在插件设置页确认 `@liuhange/dsh-toolgate-plus` 已启用。
 
-Host 侧依赖 `@deepseek-ai/schemastery`，已在 `peerDependencies` 中以可选 peer 声明，由 DSH 宿主提供，不需要也不应把该包打进 Client。
+Host 侧依赖 `@deepseek-ai/schemastery`，已在 `peerDependencies` 中以可选 peer 声明，由 DSH 宿主提供（宿主 `profiles/node_modules` 里已有该包，Node 向上查找可解析）。
 
-## 界面位置
+## 输出位置
 
 | 位置 | 内容 |
 |---|---|
-| 状态栏左侧 | 当前阶段图标：🔍 探索 / ✏️ 编辑 / 🐛 调试 |
-| 输入框上方 | 阶段切换建议，单行文本，默认 10 秒后自动消失 |
-| 插件设置页 | 「自动收缩」开关、「灵敏度」三档单选（宽松 / 标准 / 激进） |
+| 会话消息流 | 阶段切换建议，单行文本，由 `agent.followup()` 作为插件消息送达 |
+| 宿主日志 | 每次阶段切换记录 `stage` / `icon` / `suggestion`，供排查与观测 |
 
-自动收缩开启时，建议行在 10 秒后隐藏；关闭时保留到下一次阶段切换或插件卸载。
+`autoCollapse` 在移除浏览器 UI 后已不影响输出（保留配置键是为了不破坏已有配置文件）；建议消息仍受每阶段 60 秒节流控制。
 
 ## 阶段判定
 
@@ -101,7 +98,7 @@ Host 侧依赖 `@deepseek-ai/schemastery`，已在 `peerDependencies` 中以可�
 ### 建议节流
 
 - 首次进入某阶段立即推送一次建议，并调用 `agent.followup()`
-- 同一阶段 60 秒内再次进入时，只更新状态栏，不再推送建议
+- 同一阶段 60 秒内再次进入时，只更新日志，不再推送建议
 - 不同阶段各自独立计时，互不阻塞
 
 ## 配置
@@ -111,14 +108,14 @@ Host 侧依赖 `@deepseek-ai/schemastery`，已在 `peerDependencies` 中以可�
 | `autoCollapse` | boolean | `true` | 建议行是否 10 秒后自动消失 |
 | `sensitivity` | `loose` / `standard` / `aggressive` | `standard` | 阶段判定灵敏度 |
 
-客户端通过 `host.call('getPluginConfig')`、`host.call('setPluginConfig', patch)` 读写；写入失败会回滚并显示内联提示。
+配置由 cordis 加载器通过 `configSchema` 校验后传给 `apply(ctx, config)`；运行期不再提供写入 RPC（原 `setPluginConfig` 挂在并不存在的浏览器 RPC 通道上）。
 
 ## 验证
 
 ```bash
 npm test            # 17 个用例
-npm run typecheck   # host + client
-npm run build       # host + client
+npm run typecheck   # host
+npm run build       # host
 npm run pack:check  # npm 打包内容校验
 ```
 
@@ -131,15 +128,15 @@ npm run pack:check  # npm 打包内容校验
 - camelCase、MCP 前缀工具名与 neutral 工具归类
 - 标签序列判定准确率 8/8
 - 同一阶段建议不重复推送、跨阶段互不阻塞、冷却后恢复
-- 集成：`tools/pre-execute` 始终 `next()`、`agent.followup()` 消息格式、RPC 暴露、缺少 inject 时拒绝加载
+- 集成：`tools/pre-execute` 始终 `next()`、`agent.followup()` 消息格式、只声明 `tools` 注入、缺少 `tools` 服务时拒绝加载
 
 ## 已知边界
 
 - 工具名归类不全：无明确词根的自定义 MCP 工具归为 unknown，不参与占比；记录型工具已中性化，但新增工具仍可能需要补充词表。
-- 阶段回退抖动：只有滑动窗口滞回与每阶段 60 秒节流，没有最短驻留时间或多帧确认。快速来回切换时状态栏图标仍可能闪动，但建议不会刷屏。
+- 阶段回退抖动：只有滑动窗口滞回与每阶段 60 秒节流，没有最短驻留时间或多帧确认。快速来回切换时日志里的阶段会连续变化，但建议不会刷屏。
 - 调试判定依赖窗口尾部连续调用。若调试命令之后立即读取文件，可能暂不判为调试阶段。
-- `agent.followup()` 依赖宿主在 `tools/pre-execute` 的 exec 上注入 agent；缺失时仅更新状态栏并记录 warn，不阻塞工具调用。
-- Client UI 沿用 `statusBar` / `hintArea` / `settings` 挂载约定，已通过类型检查与构建，但未在真实 DSH Web 宿主内做端到端渲染验证。
+- `agent.followup()` 依赖宿主在 `tools/pre-execute` 的 exec 上注入 agent；缺失时仅写日志并记录 warn，不阻塞工具调用。
+- 权衡项：浏览器侧状态灯 / 设置面板已移除（原实现依赖 DSH 里不存在的 `ctx.ui.*`、`ctx.expose`、`ctx.push`，且产物不是 `__ModuleLoader__` bundle）。替代路径是日志 + `agent.followup()` 消息；如需图形化状态，需要按 DSH 真实 slot API 重做客户端，而不是沿用旧实现。
 - 当前仅覆盖探索、编辑、调试三阶段，未包含规划、评审等更多阶段。
 
 ## 目录
@@ -155,9 +152,5 @@ dsh-toolgate-plus/
 │   ├── listeners/toolPreExecListener.ts
 │   ├── stageCoordinator.ts
 │   └── config/                  # schema + 配置存储
-├── client/src/
-│   ├── index.ts                 # Client 入口
-│   ├── hostClient.ts            # host.call RPC 封装
-│   └── ui/                      # 状态栏图标、建议行、设置面板
 └── test/mocks/schemastery.mjs   # 测试用框架包 mock
 ```

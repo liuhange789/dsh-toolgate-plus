@@ -4,6 +4,7 @@ import type {
   PreToolDecision,
   ToolExecutionLike,
 } from '../types/dshContext.ts';
+import { createLog } from '../types/dshContext.ts';
 import type { StageCoordinator } from '../stageCoordinator.ts';
 
 type PreExecuteNext = () => Promise<PreToolDecision>;
@@ -17,11 +18,12 @@ export function registerToolPreExecListener(
   ctx: DshHostContext,
   coordinator: StageCoordinator,
 ): Disposer {
+  const log = createLog(ctx);
   const handler = (exec: ToolExecutionLike, next: PreExecuteNext): Promise<PreToolDecision> => {
     try {
       coordinator.handleToolCall(exec, Date.now());
     } catch {
-      ctx.log('warn', 'toolPreExecListener: stage update failed');
+      log('warn', 'toolPreExecListener: stage update failed');
     }
     return next();
   };

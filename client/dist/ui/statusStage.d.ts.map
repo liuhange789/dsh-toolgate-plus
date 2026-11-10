@@ -1,1 +1,0 @@
-{"version":3,"file":"statusStage.d.ts","sourceRoot":"","sources":["../../src/ui/statusStage.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,KAAK,EAAE,MAAM,mBAAmB,CAAC;AAG/C,qBAAa,WAAW;IACtB,OAAO,CAAC,EAAE,CAA4B;IACtC,OAAO,CAAC,SAAS,CAAsB;IAEvC,KAAK,CAAC,SAAS,EAAE,WAAW,GAAG,IAAI;IAYnC,MAAM,CAAC,KAAK,EAAE,KAAK,GAAG,IAAI;IAS1B,OAAO,IAAI,IAAI;CAOhB"}

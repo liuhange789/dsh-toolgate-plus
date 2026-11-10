@@ -1,15 +1,18 @@
 import { STAGE_ICONS } from "./model/types.js";
 import { getStageSuggestion } from "./suggestionTemplates.js";
 import { createSuggestionMessage } from "./suggestionMessage.js";
+import { createLog } from "./types/dshContext.js";
 export class StageCoordinator {
     deps;
+    log;
     constructor(deps) {
         this.deps = deps;
+        this.log = createLog(deps.ctx);
     }
     handleToolCall(exec, now) {
         const toolName = typeof exec.name === 'string' ? exec.name : '';
         if (toolName.length === 0) {
-            this.deps.ctx.log('warn', 'StageCoordinator: tool name missing');
+            this.log('warn', 'StageCoordinator: tool name missing');
             return;
         }
         const decision = this.deps.detector.record(toolName);
@@ -32,14 +35,14 @@ export class StageCoordinator {
     pushSuggestion(exec, suggestion) {
         const agent = exec.agent;
         if (!agent || typeof agent.followup !== 'function') {
-            this.deps.ctx.log('warn', 'StageCoordinator: agent unavailable, suggestion not queued');
+            this.log('warn', 'StageCoordinator: agent unavailable, suggestion not queued');
             return;
         }
         try {
             agent.followup(createSuggestionMessage(suggestion));
         }
         catch {
-            this.deps.ctx.log('warn', 'StageCoordinator: agent.followup failed');
+            this.log('warn', 'StageCoordinator: agent.followup failed');
         }
     }
 }

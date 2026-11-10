@@ -1,46 +1,37 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Disposer, DshHostContext, PreToolDecision } from '../types/dshContext.ts';
-import { setup } from '../index.ts';
+import { inject, setup } from '../index.ts';
 
-interface PushedEvent {
-  event: string;
-  payload: unknown;
+interface LoggedStage {
+  stage: string;
+  suggestion: string;
 }
 
-function makeMockCtx() {
+function makeMockCtx(options: { withTools?: boolean } = {}) {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
-  const exposed = new Map<string, (...args: unknown[]) => unknown>();
-  const pushed: PushedEvent[] = [];
-  const configValues: Record<string, unknown> = {
-    autoCollapse: true,
-    sensitivity: 'standard',
-  };
+  const stageLogs: LoggedStage[] = [];
 
-  const ctx = {
+  const log = vi.fn((level: string, message: string, fields?: Record<string, unknown>) => {
+    if (message === 'toolgate-plus: stage switched' && fields) {
+      stageLogs.push(fields as unknown as LoggedStage);
+    }
+  });
+
+  const ctx: Record<string, unknown> = {
     handlers,
-    exposed,
-    pushed,
+    stageLogs,
+    log,
     on: vi.fn((event: string, handler: (...args: unknown[]) => unknown): Disposer => {
       handlers.set(event, handler);
       return () => handlers.delete(event);
     }),
     effect: vi.fn(<T>(fn: () => Disposer | Promise<Disposer>): T => fn() as unknown as T),
-    inject: ['agents', 'tools'] as readonly string[],
-    log: vi.fn(),
-    config: {
-      read: vi.fn(async () => configValues),
-      write: vi.fn(async () => {}),
-      subscribe: vi.fn(() => () => {}),
-    },
-    expose: vi.fn((name: string, handler: (...args: unknown[]) => unknown) => {
-      exposed.set(name, handler);
-    }),
-    push: vi.fn((event: string, payload: unknown) => {
-      pushed.push({ event, payload });
-    }),
   };
+  if (options.withTools !== false) {
+    ctx.tools = { register: vi.fn(() => () => {}) };
+  }
 
-  return ctx;
+  return ctx as typeof ctx & { stageLogs: LoggedStage[]; log: ReturnType<typeof vi.fn> };
 }
 
 function exec(name: string, followup: (message: unknown) => void) {
@@ -92,40 +83,30 @@ describe('dsh-toolgate-plus host setup', () => {
     await call('write_file');
     expect(followup).toHaveBeenCalledTimes(2);
 
-    const stageEvents = ctx.pushed.filter((entry) => entry.event === 'onStagePush');
-    expect(stageEvents.length).toBe(3);
-    expect((stageEvents[stageEvents.length - 1].payload as { stage: string }).stage).toBe('editing');
-    expect((stageEvents[stageEvents.length - 1].payload as { suggestion: string | null }).suggestion).toBeNull();
+    // 状态快照不再 push 给浏览器，改为日志记录；阶段切换仍然是 3 次。
+    expect(ctx.stageLogs.length).toBe(3);
+    expect(ctx.stageLogs[ctx.stageLogs.length - 1].stage).toBe('editing');
+    expect(ctx.stageLogs[ctx.stageLogs.length - 1].suggestion).toBe('');
 
     expect(next).toHaveBeenCalledTimes(12);
-
-    const snapshotHandler = ctx.exposed.get('getStageSnapshot');
-    expect(snapshotHandler).toBeDefined();
-    const snapshot = (await snapshotHandler!()) as { stage: string };
-    expect(snapshot.stage).toBe('editing');
   });
 
-  it('declares the required injects and exposes the client RPC surface', async () => {
+  it('declares only the tools inject and hooks tools/pre-execute', async () => {
     const ctx = makeMockCtx();
     await setup(ctx as unknown as DshHostContext);
 
+    expect([...inject]).toEqual(['tools']);
     expect(ctx.handlers.has('tools/pre-execute')).toBe(true);
-    expect(ctx.exposed.has('getStageSnapshot')).toBe(true);
-    expect(ctx.exposed.has('getPluginConfig')).toBe(true);
-    expect(ctx.exposed.has('setPluginConfig')).toBe(true);
   });
 
-  it('refuses to load when a required inject is missing', async () => {
-    const ctx = makeMockCtx();
-    ctx.inject = ['tools'] as readonly string[];
+  it('refuses to load when the tools service is missing', async () => {
+    const ctx = makeMockCtx({ withTools: false });
     const disposer = await setup(ctx as unknown as DshHostContext);
 
     expect(ctx.handlers.has('tools/pre-execute')).toBe(false);
-    expect(ctx.log).toHaveBeenCalledWith(
-      'error',
-      'LifecycleManager: missing required inject',
-      { missing: 'agents' },
-    );
+    expect(ctx.log).toHaveBeenCalledWith('error', 'LifecycleManager: missing required service', {
+      missing: 'tools',
+    });
     disposer();
   });
 });

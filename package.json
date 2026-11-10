@@ -1,6 +1,6 @@
 {
   "name": "@liuhange/dsh-toolgate-plus",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "会话阶段感知的动态工具准入插件 — 判断探索/编辑/调试阶段，并在切换时给出一行建议",
   "author": "liuhange789",
   "license": "MIT",
@@ -23,15 +23,10 @@
       "types": "./host/dist/index.d.ts",
       "default": "./host/dist/index.js"
     },
-    "./client": {
-      "types": "./client/dist/index.d.ts",
-      "default": "./client/dist/index.js"
-    },
     "./package.json": "./package.json"
   },
   "files": [
     "host/dist",
-    "client/dist",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -39,14 +34,10 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web"
     }
   },
   "workspaces": [
-    "host",
-    "client"
+    "host"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
@@ -81,3 +72,4 @@
     "automation"
   ]
 }
+

@@ -2,7 +2,7 @@ import type { PluginConfig } from '../model/pluginConfig.ts';
 import { DEFAULT_PLUGIN_CONFIG, clonePluginConfig } from '../model/pluginConfig.ts';
 import type { Sensitivity } from '../model/types.ts';
 import { isSensitivity } from '../model/types.ts';
-import type { DshHostContext, Disposer } from '../types/dshContext.ts';
+import type { Disposer, LogFn } from '../types/dshContext.ts';
 
 export const ERR_CFG_WRITE_FAILED = 'CFG_WRITE_FAILED';
 export const ERR_INVALID_SENSITIVITY = 'INVALID_SENSITIVITY';
@@ -12,12 +12,18 @@ export interface ConfigWriteResult {
   errorCode: string | null;
 }
 
+/**
+ * 配置来源改为 cordis 加载器传入的插件配置（配合 index.ts 导出的 configSchema）。
+ * DSH 里没有 ctx.config 这个服务，原实现调 ctx.config.read/write/subscribe 会抛 TypeError。
+ * 配置键与默认值保持不变：autoCollapse / sensitivity。
+ */
 export class ConfigStore {
-  private current: PluginConfig = clonePluginConfig(DEFAULT_PLUGIN_CONFIG);
-  private readonly ctx: DshHostContext | null;
+  private current: PluginConfig;
+  private readonly log: LogFn | null;
 
-  constructor(ctx: DshHostContext | null = null) {
-    this.ctx = ctx;
+  constructor(initial: Partial<PluginConfig> = {}, log: LogFn | null = null) {
+    this.current = this.normalize(initial as Record<string, unknown>);
+    this.log = log;
   }
 
   read(): PluginConfig {
@@ -25,54 +31,27 @@ export class ConfigStore {
   }
 
   async load(): Promise<PluginConfig> {
-    if (!this.ctx) {
-      return this.read();
-    }
-    try {
-      const raw = await this.ctx.config.read();
-      if (!raw) {
-        this.current = clonePluginConfig(DEFAULT_PLUGIN_CONFIG);
-        return this.read();
-      }
-      this.current = this.normalize(raw);
-      return this.read();
-    } catch {
-      this.ctx.log('warn', 'ConfigStore: config read failed, using defaults');
-      this.current = clonePluginConfig(DEFAULT_PLUGIN_CONFIG);
-      return this.read();
-    }
+    return this.read();
   }
 
   async write(patch: Partial<PluginConfig>): Promise<ConfigWriteResult> {
     if (patch.sensitivity !== undefined && !isSensitivity(patch.sensitivity)) {
       return { config: this.read(), errorCode: ERR_INVALID_SENSITIVITY };
     }
-    const next: PluginConfig = {
+    this.current = {
       autoCollapse: patch.autoCollapse ?? this.current.autoCollapse,
       sensitivity: (patch.sensitivity ?? this.current.sensitivity) as Sensitivity,
     };
-    if (!this.ctx) {
-      this.current = next;
-      return { config: this.read(), errorCode: null };
-    }
-    try {
-      await this.ctx.config.write(next as unknown as Record<string, unknown>);
-      this.current = next;
-      return { config: this.read(), errorCode: null };
-    } catch {
-      this.ctx.log('warn', 'ConfigStore: config write failed', { code: ERR_CFG_WRITE_FAILED });
-      return { config: this.read(), errorCode: ERR_CFG_WRITE_FAILED };
-    }
+    return { config: this.read(), errorCode: null };
   }
 
+  /**
+   * 配置只在加载时生效，运行期没有外部写入方（原来的写入入口是浏览器侧的 setPluginConfig RPC）。
+   * 保留这个订阅接口，是为了让 index.ts 的阈值刷新逻辑与测试意图不变。
+   */
   subscribe(handler: (config: PluginConfig) => void): Disposer {
-    if (!this.ctx) {
-      return () => {};
-    }
-    return this.ctx.config.subscribe((raw) => {
-      this.current = this.normalize(raw);
-      handler(this.read());
-    });
+    handler(this.read());
+    return () => {};
   }
 
   private normalize(raw: Record<string, unknown>): PluginConfig {
@@ -84,7 +63,7 @@ export class ConfigStore {
       ? (raw.sensitivity as Sensitivity)
       : DEFAULT_PLUGIN_CONFIG.sensitivity;
     if (raw.sensitivity !== undefined && !isSensitivity(raw.sensitivity)) {
-      this.ctx?.log('warn', 'ConfigStore: invalid sensitivity, falling back to standard', {
+      this.log?.('warn', 'ConfigStore: invalid sensitivity, falling back to standard', {
         received: raw.sensitivity,
       });
     }

@@ -12,6 +12,7 @@ export interface StageCoordinatorDeps {
 }
 export declare class StageCoordinator {
     private readonly deps;
+    private readonly log;
     constructor(deps: StageCoordinatorDeps);
     handleToolCall(exec: ToolExecutionLike, now: number): void;
     private pushSuggestion;
