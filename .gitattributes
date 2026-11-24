@@ -1,0 +1,5 @@
+# 强制 LF：package.json 若被写回 CRLF/BOM，宿主 JSON.parse 会失败
+* text=auto eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.mjs text eol=lf

@@ -1,6 +1,6 @@
 {
   "name": "@liuhange/dsh-toolgate-plus",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "会话阶段感知的动态工具准入插件 — 判断探索/编辑/调试阶段，并在切换时给出一行建议",
   "author": "liuhange789",
   "license": "MIT",
@@ -43,7 +43,8 @@
     "build": "npm run build --workspaces",
     "test": "node node_modules/vitest/vitest.mjs run --config vitest.config.ts --isolate=false",
     "typecheck": "npm run typecheck --workspaces",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "prepack": "node scripts/strip-bom.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/schemastery": ">=3.18.0 <4.0.0"
@@ -72,4 +73,3 @@
     "automation"
   ]
 }
-
